@@ -4,7 +4,7 @@ use strict;
 
 use vars qw($VERSION);
 
-$VERSION='0.2';
+$VERSION='0.3';
 
 sub new {
         my $this = shift;
@@ -20,6 +20,8 @@ sub new {
 # min hour day month weekday command
 # 
 
+# раскрыть диапазоны. vixie-like не понимаются, только перечисление
+# через запятую и через -
 sub expand{
     my($s,$start,$end)=@_;
     return ($start .. $end) if $s eq '*';
@@ -40,6 +42,14 @@ sub expand{
     return sort @ev;
 }
 
+#
+# В силу того, что это не нормальный крон, а пускаемый по дерганию юзером,
+# у нас есть следующие времена
+# ltime  - время, когда задача была запущена последний раз перед текущим моментом
+# ctime  - нынешнее время
+# lrtime - для какого момента времени была запущена задача в последний раз
+# rtime  - когда должна быть запущена требуемая задача
+#
 sub run{
  my $self=shift;
  my %periods=(
@@ -59,7 +69,7 @@ sub run{
  ($entry{min}, $entry{hour}, $entry{day}, $entry{month}, $entry{wday}, $entry{command})=
     split ' ', $s, 6;
 
- my $borrow=0;
+
  for my $k (qw(min hour day month) ){
    my $i = $periods{$k}{i};
    $ltime[$i] = $periods{$k}{adj}->($ltime[$i]);
@@ -71,6 +81,7 @@ sub run{
  my $rtime;
  my $ctime = sprintf "%02d%02d%02d%02d", @ctime[4,3,2,1];
 
+# диапазоны раскрыты. идем от месяцев к секундам из будущего
  COMMON: for my $month (reverse @{$entry{month}}){
     next if $month > $ctime[4];
     for my $day (reverse @{$entry{day}}){
@@ -85,26 +96,27 @@ sub run{
     }
  }
 
- die 'lala' if sysopen(MARK_LOCK, $self->{lrmark} . '.lock', O_CREAT | O_RDWR | O_EXCL, 0666 );
+#
+# не позволить двум задачам запустится одновременно.
+#
+ return 0 if !sysopen(MARK_LOCK, $self->{lrmark} . '.lock', O_CREAT | O_RDWR | O_EXCL, 0666 );
+ close MARK_LOCK;
  open MARK, $self->{lrmark};
  my $lrtime=<MARK>;
  chomp $lrtime;
  close MARK;
- if ( !$lrtime ){
+
+ if ( !$lrtime ){ # так, запустились в первый раз. отметимся и уйдем.
       open MARK, '>' . $self->{lrmark};
-      eval "flock MARK,2";
       print MARK 1;
-      eval "flock MARK,8";
       close MARK;
       return 0;
  }
 
  if ( $ltime le $rtime and $rtime le $ctime and $rtime ne $lrtime){
     open MARK, '>' . $self->{lrmark};
-    eval "flock MARK,2";
     $self->{code}->();
     print MARK $rtime;
-    eval "flock MARK,8";
     close MARK;
     unlink $self->{lrmark} . '.lock';
     return 1;
@@ -132,7 +144,7 @@ Schedule::Cronchik - a cron-like addition to CGI scripts or something like it.
  
 Sometimes I need a task, peformed on regular basis. Unfortunately, not so
 much hostings allows you to write your own crontabs, and getting a more
-powerful hosting is too for your (or mine) task. Well, this module give
+powerful hosting have too high cost for required task. Well, this module give
 you a partial solution. 
 
 =head1 METHODS
@@ -152,7 +164,8 @@ create a new Schedule::Cronchik object.
 =item C<entry>
 
 a cron-like entry with same behavoir. Note: the last field, a
-week day, now is simply ignored.
+week day, now is simply ignored. Also Vixie-like extensions is
+not supported, only sequences with ',' and ranges with '-'
 
 =item C<coderef>
 
