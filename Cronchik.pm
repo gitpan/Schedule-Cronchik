@@ -1,9 +1,10 @@
 package Schedule::Cronchik;
+use Fcntl;
 use strict;
 
 use vars qw($VERSION);
 
-$VERSION='0.1';
+$VERSION='0.2';
 
 sub new {
         my $this = shift;
@@ -84,6 +85,7 @@ sub run{
     }
  }
 
+ die 'lala' if sysopen(MARK_LOCK, $self->{lrmark} . '.lock', O_CREAT | O_RDWR | O_EXCL, 0666 );
  open MARK, $self->{lrmark};
  my $lrtime=<MARK>;
  chomp $lrtime;
@@ -104,8 +106,10 @@ sub run{
     print MARK $rtime;
     eval "flock MARK,8";
     close MARK;
+    unlink $self->{lrmark} . '.lock';
     return 1;
  }
+ unlink $self->{lrmark} . '.lock';
  return 0;
 }
 
