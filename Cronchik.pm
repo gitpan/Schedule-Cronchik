@@ -4,7 +4,7 @@ use strict;
 
 use vars qw($VERSION);
 
-$VERSION='0.3';
+$VERSION='0.4';
 
 sub new {
         my $this = shift;
@@ -110,6 +110,7 @@ sub run{
       open MARK, '>' . $self->{lrmark};
       print MARK 1;
       close MARK;
+      unlink $self->{lrmark} . '.lock';
       return 0;
  }
 
